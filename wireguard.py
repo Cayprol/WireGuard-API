@@ -1,3 +1,5 @@
+import platform
+NEW_LINE = "\r\n" if platform.system() == "Windows" else "\n" 
 class WireGuard(dict):
 	"""
 	__setitem__ is called when assigning value by indices
@@ -42,26 +44,33 @@ class Peer(WireGuard):
 class Interface(WireGuard):
 	_requirement = ['PrivateKey', 'Address']
 
-p1 = Peer({'PublicKey': 'key', 'AllowedIPs': 'IPs'})
+# p1 = Peer({'PublicKey': 'key', 'AllowedIPs': 'IPs'})
 
-# import subprocess
-# result = subprocess.run(['wg', 'show'], stdout=subprocess.PIPE)
-# print(result.stdout)
-# print(result.stdout.decode('utf-8'))
+# 1. Get names of all interfaces by 'wg show'
+# 2. Get each interface running status in config format by 'wg showconf <interface>'
+# 3. Turn config format into dictionary
+# import subprocess, json, re
 
-# wg0 = WireGuard({'test1': 1})
-# wg0.update({'test2': 2})
-# wg0['test3'] = 3
-# print("print wg0", wg0)
-# print("print wg0.test1", wg0.test1)
-# print("print wg0.test2", wg0.test2)
-# print("print wg0.test3", wg0.test3)
-# print("print wg0.__dict__", wg0.__dict__)
-# p1 = Peer({'test1': 1})
-# p1.update({'test2': 2})
-# p1['test3'] = 3
-# print("print p1", p1)
-# print("print p1.test1", p1.test1)
-# print("print p1.test2", p1.test2)
-# print("print p1.test3", p1.test3)
-# print("print p1.__dict__", p1.__dict__)
+# def peers(lines):
+# 	peers = [line_number for line_number, line in enumerate(lines) if '[Peer]' in line]
+# 	return peers
+
+# def stanza(conf):
+# 	lines = conf.split(NEW_LINE)
+# 	peer_stanzas = peers(lines)
+# 	print(peer_stanzas)
+# 	interface_stanza = lines[:peer_stanzas[0]-1]
+# 	return interface_stanza
+
+
+
+# show = subprocess.run(['wg', 'show'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+# interfaces = [re.search(r'(?<=^interface: ).*', line).group(0) for line in show.split(NEW_LINE) if re.search(r'(?<=^interface: ).*', line)]
+# for interface in interfaces:
+# 	conf = subprocess.run(['wg', 'showconf', interface], stdout=subprocess.PIPE).stdout.decode('utf-8')
+# 	print(stanza(conf))
+
+try: 
+	subprocess.run(['wg', 'showconf', 'test'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+except:
+	print("error")
