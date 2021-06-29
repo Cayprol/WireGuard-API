@@ -18,19 +18,16 @@ NEW_LINE = "\r\n" if platform.system() == "Windows" else "\n"
 class Handler(BaseHTTPRequestHandler):
 	def _set_response(self):
 		self.send_response(200)
-		# self.send_header('Content-type', 'text/html')
-		self.send_header('Content-type', 'application/json')
+		self.send_header('Content-type', 'application/json') # 'text/html', 'image/x-icon'
 		self.end_headers()
 
-	def _identify_path(self, path: str):
-		path = path.lower()
+	def _path_finder(self, path: str):
 		if path == '/interfaces':
 			return str(self._get_interfaces())
 
 		if path[:11] == '/interface/':
 			interface = path[11:]
 			conf = subprocess.run(['wg', 'showconf', interface], stdout=subprocess.PIPE).stdout.decode('utf-8')
-			print(conf)
 			return conf
 
 	def _get_interfaces(self):
@@ -39,11 +36,10 @@ class Handler(BaseHTTPRequestHandler):
 		interfaces = [re.search(r'(?<=^interface: ).*', line).group(0) for line in show.split(NEW_LINE) if re.search(r'(?<=^interface: ).*', line)]
 		return interfaces
 
-	# do_GET method name cannot be changed for handling GET request
+	# do_GET method name cannot be changed
 	def do_GET(self):
-		# self.path
 		self._set_response()
-		response = self._identify_path(self.path)
+		response = self._path_finder(self.path) or ""
 		self.wfile.write(response.encode('utf-8'))
 
 		# content_length = int(self.headers['Content-Length'])
