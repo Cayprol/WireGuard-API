@@ -1,5 +1,5 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from wireguard import Peer
+# from wireguard import Peer
 import argparse, ast, platform, re, subprocess
 parser = argparse.ArgumentParser()
 
@@ -12,7 +12,7 @@ args = parser.parse_args()
 
 PORT = args.port or 80
 HOST = 'localhost'
-NEW_LINE = "\r\n" if platform.system() == "Windows" else "\n" 
+NEW_LINE = '\r\n' if platform.system() == 'Windows' else '\n'
 # p1 = Peer({'PublicKey': 'key', 'AllowedIPs': 'IPs'})
 
 class Handler(BaseHTTPRequestHandler):
@@ -21,41 +21,48 @@ class Handler(BaseHTTPRequestHandler):
 		self.send_header('Content-type', 'application/json') # 'text/html', 'image/x-icon'
 		self.end_headers()
 
-	def _path_finder(self, path: str):
+	def _path_finder(self, path: str, request='GET', data={}):
 		if path == '/interfaces':
-			return str(self._get_interfaces())
+			show = subprocess.run(['wg', 'show'], capture_output=True).stdout.decode('utf-8')
+			interfaces = [re.search(r'(?<=^interface: ).*', line).group(0) for line in show.split(NEW_LINE) if re.search(r'(?<=^interface: ).*', line)]
+			return str(interfaces)
 
 		if path[:11] == '/interface/':
 			interface = path[11:]
-			conf = subprocess.run(['wg', 'showconf', interface], stdout=subprocess.PIPE).stdout.decode('utf-8')
-			return conf
+			if request == 'GET':
+				conf = subprocess.run(['wg', 'showconf', interface], capture_output=True).stdout.decode('utf-8')
+				return conf
+			if request == 'POST':
+				# PublicKey, AllowedIPs = data.get('PublicKey'), data.get('AllowedIPs')				
+				keys = {data.get('PublicKey'): 'PublicKey', data.get('AllowedIPs'): 'AllowedIPs'}
 
-	def _get_interfaces(self):
-		show = subprocess.run(['wg', 'show'], stdout=subprocess.PIPE).stdout.decode('utf-8')
-		print(show)
-		interfaces = [re.search(r'(?<=^interface: ).*', line).group(0) for line in show.split(NEW_LINE) if re.search(r'(?<=^interface: ).*', line)]
-		return interfaces
+				if keys.get(None):
+					return "{} cannot be None".format(keys.get(None))
+
+				add_peer = subprocess.run(['wg', 'set', interface, 'peer', data.get('PublicKey'), 'allowed-ips', data.get('AllowedIPs')], capture_output=True)
+				if add_peer.stderr:
+					return add_peer.stderr.decode('utf-8')
+				else:
+					# return str(add_peer.stdout.decode('utf-8'))
+					show = subprocess.run(['wg', 'show'], capture_output=True).stdout.decode('utf-8')
+					show_stripped = [line.strip() for line in show.split(NEW_LINE)]
+					for line_number, line in enumerate(show_stripped):
+						if 'peer: {}'.format(data.get('PublicKey')) in line:
+							return str(show_stripped[line_number: line_number+4])
 
 	# do_GET method name cannot be changed
 	def do_GET(self):
 		self._set_response()
-		response = self._path_finder(self.path) or ""
+		response = self._path_finder(self.path) or ''
 		self.wfile.write(response.encode('utf-8'))
-
-		# content_length = int(self.headers['Content-Length'])
-		# raw_data = self.rfile.read(content_length)
-
-		# data_dict = ast.literal_eval(raw_data.decode('utf-8'))
-		# print(type(raw_data), type(data_dict))
-		# print(data_dict)
-		# print(self.path)
-		# self.wfile.write(raw_data)
 
 	def do_POST(self):
 		self._set_response()
 		content_length = int(self.headers['Content-Length'])
-		data = self.rfile.read(content_length)
-		self.wfile.write(data)
+		encoded_data = self.rfile.read(content_length)
+		dict_data = ast.literal_eval(encoded_data.decode('utf-8'))
+		response = self._path_finder(self.path, request='POST', data=dict_data) or ''
+		self.wfile.write(response.encode('utf-8'))
 
 def main():
 	server = HTTPServer((HOST, PORT), Handler)
