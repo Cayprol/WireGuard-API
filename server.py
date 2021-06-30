@@ -40,6 +40,7 @@ class Handler(BaseHTTPRequestHandler):
 					return "{} cannot be None".format(keys.get(None))
 
 				add_peer = subprocess.run(['wg', 'set', interface, 'peer', data.get('PublicKey'), 'allowed-ips', data.get('AllowedIPs')], capture_output=True)
+
 				if add_peer.stderr:
 					return add_peer.stderr.decode('utf-8')
 				else:
@@ -49,6 +50,23 @@ class Handler(BaseHTTPRequestHandler):
 					for line_number, line in enumerate(show_stripped):
 						if 'peer: {}'.format(data.get('PublicKey')) in line:
 							return str(show_stripped[line_number: line_number+4])
+					return "fail"
+
+			if request == 'DELETE':
+				keys = {data.get('PublicKey'): 'PublicKey'}
+				if keys.get(None):
+					return "{} cannot be None".format(keys.get(None))
+				remove_peer = subprocess.run(['wg', 'set', interface, 'peer', data.get('PublicKey'), 'remove'], capture_output=True)
+				if remove_peer.stderr:
+					return remove_peer.stderr.decode('utf-8')
+				else:
+					show = subprocess.run(['wg', 'show'], capture_output=True).stdout.decode('utf-8')
+					show_stripped = [line.strip() for line in show.split(NEW_LINE)]
+					for line_number, line in enumerate(show_stripped):
+						if 'peer: {}'.format(data.get('PublicKey')) in line:
+							return str(show_stripped[line_number: line_number+4])
+					return "success"
+
 
 	# do_GET method name cannot be changed
 	def do_GET(self):
