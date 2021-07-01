@@ -3,7 +3,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import argparse, ast, platform, re, subprocess
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-p", "--port", type=int, help="HTTPServer hosting port")
+parser.add_argument('-p', '--port', type=int, help='HTTPServer hosting port')
 # parser.add_argument("config", help="Path of WireGuard Interface config file")
 # action = "store_true" | "count"
 # choices=[0, 1, 2]
@@ -37,9 +37,14 @@ class Handler(BaseHTTPRequestHandler):
 				keys = {data.get('PublicKey'): 'PublicKey', data.get('AllowedIPs'): 'AllowedIPs'}
 
 				if keys.get(None):
-					return "{} cannot be None".format(keys.get(None))
+					return '{} cannot be None'.format(keys.get(None))
 
-				add_peer = subprocess.run(['wg', 'set', interface, 'peer', data.get('PublicKey'), 'allowed-ips', data.get('AllowedIPs')], capture_output=True)
+				add_peer = subprocess.run([
+					'wg', 'set', interface, 'peer', data.get('PublicKey', ''), 
+					'allowed-ips', data.get('AllowedIPs', ''), 
+					'endpoint', data.get('Endpoint', ''),
+					'persistent-keepalive', data.get('PersistentKeepalive', '0')],
+					capture_output=True)
 
 				if add_peer.stderr:
 					return add_peer.stderr.decode('utf-8')
@@ -49,13 +54,13 @@ class Handler(BaseHTTPRequestHandler):
 					show_stripped = [line.strip() for line in show.split(NEW_LINE)]
 					for line_number, line in enumerate(show_stripped):
 						if 'peer: {}'.format(data.get('PublicKey')) in line:
-							return str(show_stripped[line_number: line_number+4])
-					return "fail"
+							return str(list(filter(None, show_stripped[line_number: line_number+6])))
+					return 'fail'
 
 			if request == 'DELETE':
 				keys = {data.get('PublicKey'): 'PublicKey'}
 				if keys.get(None):
-					return "{} cannot be None".format(keys.get(None))
+					return '{} cannot be None'.format(keys.get(None))
 				remove_peer = subprocess.run(['wg', 'set', interface, 'peer', data.get('PublicKey'), 'remove'], capture_output=True)
 				if remove_peer.stderr:
 					return remove_peer.stderr.decode('utf-8')
@@ -64,8 +69,8 @@ class Handler(BaseHTTPRequestHandler):
 					show_stripped = [line.strip() for line in show.split(NEW_LINE)]
 					for line_number, line in enumerate(show_stripped):
 						if 'peer: {}'.format(data.get('PublicKey')) in line:
-							return str(show_stripped[line_number: line_number+4])
-					return "success"
+							return str(list(filter(None, show_stripped[line_number: line_number+6])))
+					return 'success'
 
 
 	# do_GET method name cannot be changed
@@ -82,9 +87,19 @@ class Handler(BaseHTTPRequestHandler):
 		response = self._path_finder(self.path, request='POST', data=dict_data) or ''
 		self.wfile.write(response.encode('utf-8'))
 
+	def do_DELETE(self):
+		self._set_response()
+		if not self.headers['Content-Length']:
+			return self.wfile.write('No peer specified'.encode('utf-8'))
+		content_length = int(self.headers['Content-Length'])
+		encoded_data = self.rfile.read(content_length)
+		dict_data = ast.literal_eval(encoded_data.decode('utf-8'))		
+		response = self._path_finder(self.path, request='DELETE', data=dict_data) or ''
+		self.wfile.write(response.encode('utf-8'))
+
 def main():
 	server = HTTPServer((HOST, PORT), Handler)
-	print("Server running on address {}:{}".format(HOST,PORT))
+	print('Server running on address {}:{}'.format(HOST,PORT))
 	server.serve_forever()
 
 if __name__ == '__main__':
